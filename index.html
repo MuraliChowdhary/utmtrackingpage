@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Loading Page</title>
+</head>
+<body>
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const shortId = urlParams.get("shortId");
+    const originalUrl = urlParams.get("originalUrl") || "";
+    const REDIRECT_TIMEOUT = 3000;
+
+    const handleRedirect = () => {
+      if (originalUrl) {
+        console.log("Redirecting to:", originalUrl);
+        
+        if (shortId) {
+          const trackingData = {
+            visitorId: localStorage.getItem("visitorId") || "unknown",
+            shortId,
+            city: localStorage.getItem("userCity") || "unknown",
+            timestamp: new Date().toISOString()
+          };
+
+          // Use fetch with keepalive to ensure the request completes
+          fetch("https://my-app.muralisudireddy0.workers.dev/store-visitor-id", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(trackingData),
+            keepalive: true
+          }).catch(() => { /* Ignore errors */ });
+        }
+
+        safeRedirect(originalUrl);
+      }
+    };
+
+    const redirectTimer = setTimeout(handleRedirect, REDIRECT_TIMEOUT);
+
+    async function collectVisitorData() {
+      try {
+        // Location fetch
+        try {
+          const locationResponse = await fetch("https://ipapi.co/json/", { signal: AbortSignal.timeout(800) });
+          if (locationResponse.ok) {
+            const locationData = await locationResponse.json();
+            if (locationData.city) localStorage.setItem("userCity", locationData.city);
+          }
+        } catch (locationError) {
+          console.log("Location fetch failed");
+        }
+
+        // Fingerprinting
+        try {
+          const fpPromise = import("https://fpjscdn.net/v3/q3B3Rzgfic7PLQfqdChA");
+          const fpJSModule = await Promise.race([
+            fpPromise,
+            new Promise((_, reject) => setTimeout(() => reject("FingerprintJS timeout"), 3000))
+          ]);
+          
+          const fp = await fpJSModule.load();
+          const result = await fp.get();
+          const visitorId = result.visitorId;
+          localStorage.setItem("visitorId", visitorId);
+
+          if (shortId) {
+            const city = localStorage.getItem("userCity") || "unknown";
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 800);
+
+            const trackingResponse = await fetch(
+              "https://my-app.muralisudireddy0.workers.dev/store-visitor-id",
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ visitorId, shortId, city }),
+                signal: controller.signal
+              }
+            );
+            clearTimeout(timeoutId);
+
+            if (trackingResponse.ok && !window.redirected) {
+              clearTimeout(redirectTimer);
+              handleRedirect();
+            }
+          }
+        } catch (error) {
+          console.log("Fingerprinting error:", error);
+          if (!localStorage.getItem("visitorId")) {
+            localStorage.setItem("visitorId", 'visitor_' + Math.random().toString(36).substring(2, 15));
+          }
+        }
+      } catch (error) {
+        console.error("Data collection error:", error);
+      }
+    }
+
+    window.redirected = false;
+    const safeRedirect = (url) => {
+      if (!window.redirected) {
+        window.redirected = true;
+        window.location.href = url;
+      }
+    };
+
+    collectVisitorData();
+
+    if (originalUrl) {
+      document.addEventListener('DOMContentLoaded', () => {
+        if (!window.redirected) {
+          clearTimeout(redirectTimer);
+          handleRedirect();
+        }
+      });
+    }
+  </script>
+</body>
+</html>
