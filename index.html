@@ -214,83 +214,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Secure Redirect</title>
+    <title>PickNPartner</title>
     <meta name="robots" content="noindex, nofollow">
-    <style>
-        /* Base styles for the loading page */
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            overflow: hidden; /* Prevent scrolling */
-        }
-        .container {
-            text-align: center;
-            max-width: 400px;
-            padding: 2rem;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 16px;
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
-        }
-        .spinner {
-            width: 32px;
-            height: 32px;
-            border: 3px solid rgba(255, 255, 255, 0.3);
-            border-top: 3px solid white;
-            border-radius: 50%;
-            margin: 0 auto 1rem;
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        .text {
-            font-size: 16px;
-            margin-bottom: 1rem;
-            opacity: 0.9;
-        }
-        .progress {
-            width: 100%;
-            height: 4px;
-            background: rgba(255, 255, 255, 0.2);
-            border-radius: 2px;
-            overflow: hidden;
-        }
-        .progress-bar {
-            height: 100%;
-            background: white;
-            border-radius: 2px;
-            width: 0%;
-            animation: progress 0.8s ease-out forwards;
-        }
-        @keyframes progress {
-            0% { width: 0%; }
-            100% { width: 100%; }
-        }
-        .fallback {
-            margin-top: 1rem;
-            font-size: 14px;
-            opacity: 0.7;
-        }
-        .fallback a {
-            color: white;
-            text-decoration: underline;
-            transition: color 0.3s ease;
-        }
-        .fallback a:hover {
-            color: #e0e0e0;
-        }
-        /* Utility class */
-        .hidden { display: none; }
-    </style>
 </head>
 <body>
      
