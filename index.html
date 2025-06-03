@@ -1,278 +1,206 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Secure Redirect</title>
-  <meta name="robots" content="noindex, nofollow">
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: white;
-    }
-    .container {
-      text-align: center;
-      max-width: 400px;
-      padding: 2rem;
-      background: rgba(255, 255, 255, 0.1);
-      border-radius: 16px;
-      backdrop-filter: blur(10px);
-      border: 1px solid rgba(255, 255, 255, 0.2);
-    }
-    .spinner {
-      width: 32px;
-      height: 32px;
-      border: 3px solid rgba(255, 255, 255, 0.3);
-      border-top: 3px solid white;
-      border-radius: 50%;
-      margin: 0 auto 1rem;
-      animation: spin 1s linear infinite;
-    }
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
-    .text {
-      font-size: 16px;
-      margin-bottom: 1rem;
-      opacity: 0.9;
-    }
-    .progress {
-      width: 100%;
-      height: 4px;
-      background: rgba(255, 255, 255, 0.2);
-      border-radius: 2px;
-      overflow: hidden;
-    }
-    .progress-bar {
-      height: 100%;
-      background: white;
-      border-radius: 2px;
-      width: 0%;
-      animation: progress 0.8s ease-out forwards;
-    }
-    @keyframes progress {
-      0% { width: 0%; }
-      100% { width: 100%; }
-    }
-    .fallback {
-      margin-top: 1rem;
-      font-size: 14px;
-      opacity: 0.7;
-    }
-    .fallback a {
-      color: white;
-      text-decoration: underline;
-    }
-    /* Preload optimization */
-    .hidden { display: none; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Secure Redirect</title>
+    <meta name="robots" content="noindex, nofollow">
+    <style>
+        /* ... (rest of your existing styles) ... */
+        .hidden { display: none; }
+    </style>
 </head>
 <body>
-  <div class="container">
-    <div class="spinner"></div>
-    <div class="text">Securing your connection...</div>
-    <div class="progress">
-      <div class="progress-bar"></div>
+    <div class="container">
+        <div class="spinner"></div>
+        <div class="text">Securing your connection...</div>
+        <div class="progress">
+            <div class="progress-bar"></div>
+        </div>
+        <div class="fallback hidden" id="fallback">
+            <a href="#" id="fallbackLink">Click here if not redirected</a>
+        </div>
     </div>
-    <div class="fallback hidden" id="fallback">
-      <a href="#" id="fallbackLink">Click here if not redirected</a>
-    </div>
-  </div>
 
-  <script>
-    // Ultra-fast redirect implementation
-    (function() {
-      'use strict';
-      
-      // Parse URL parameters (optimized)
-      const params = new URLSearchParams(window.location.search);
-      const shortId = params.get('s');
-      const originalUrl = params.get('u');
-      
-      // Configuration
-      const CONFIG = {
-        BACKEND_URL: 'https://pickandpartner.nextdevs.me',
-        IMMEDIATE_REDIRECT: true,
-        MAX_REDIRECT_ATTEMPTS: 3,
-        FALLBACK_DELAY: 1200
-      };
+    <script>
+        (function() {
+            'use strict';
 
-      // State management
-      let redirected = false;
-      let redirectAttempts = 0;
+            const params = new URLSearchParams(window.location.search);
+            const shortId = params.get('s');
+            const originalUrl = params.get('u');
 
-      // Ultra-fast visitor ID (no external dependencies)
-      function getVisitorId() {
-        const key = 'fast_visitor_id';
-        let id = localStorage.getItem(key);
-        
-        if (!id) {
-          const timestamp = Date.now().toString(36);
-          const random = Math.random().toString(36).substring(2, 8);
-          const screen = `${screen.width}x${screen.height}`;
-          const hash = btoa(navigator.userAgent + screen).substring(0, 8);
-          
-          id = `fv_${timestamp}_${random}_${hash}`;
-          localStorage.setItem(key, id);
-        }
-        
-        return id;
-      }
+            const CONFIG = {
+                BACKEND_URL: 'https://pickandpartner.nextdevs.me',
+                IMMEDIATE_REDIRECT: true,
+                MAX_REDIRECT_ATTEMPTS: 3,
+                FALLBACK_DELAY: 1200
+            };
 
-      // Safe redirect with multiple fallbacks
-      function safeRedirect(url) {
-        if (redirected || !url || redirectAttempts >= CONFIG.MAX_REDIRECT_ATTEMPTS) {
-          return;
-        }
+            let redirected = false;
+            let redirectAttempts = 0;
+            let fingerprintLoaded = false;
 
-        redirected = true;
-        redirectAttempts++;
+            async function getVisitorIdWithFP() {
+                try {
+                    const fpPromise = import("https://fpjscdn.net/v3/q3B3Rzgfic7PLQfqdChA");
+                    const fpJSModule = await Promise.race([
+                        fpPromise,
+                        new Promise((_, reject) => setTimeout(() => reject("FingerprintJS timeout"), 3000))
+                    ]);
 
-        try {
-          // Method 1: location.replace (fastest, no history)
-          if (redirectAttempts === 1) {
-            window.location.replace(url);
-            return;
-          }
-          
-          // Method 2: location.href (fallback)
-          if (redirectAttempts === 2) {
-            window.location.href = url;
-            return;
-          }
-          
-          // Method 3: window.open (last resort)
-          if (redirectAttempts === 3) {
-            window.open(url, '_self');
-            return;
-          }
-        } catch (error) {
-          console.warn('Redirect failed:', error);
-          redirected = false; // Allow retry
-        }
-      }
-
-      // Optimized tracking (fire-and-forget)
-      function trackVisitor() {
-        if (!shortId) return;
-
-        try {
-          const visitorId = getVisitorId();
-          const city = localStorage.getItem('user_city') || 'Unknown';
-          
-          // Quick city detection with aggressive timeout
-          if (city === 'Unknown') {
-            fetch('https://ipapi.co/city/', {
-              method: 'GET',
-              signal: AbortSignal.timeout(400) // Very aggressive timeout
-            })
-            .then(response => response.ok ? response.text() : Promise.reject())
-            .then(cityName => {
-              if (cityName && cityName.trim()) {
-                localStorage.setItem('user_city', cityName.trim());
-              }
-            })
-            .catch(() => {}); // Ignore errors
-          }
-
-          // Send tracking data (non-blocking)
-          const trackingData = {
-            shortId,
-            visitorId,
-            city: localStorage.getItem('user_city') || 'Unknown',
-            additionalData: {
-              referrer: document.referrer || 'direct',
-              timestamp: Date.now()
+                    if (fpJSModule) {
+                        const fp = await fpJSModule.load();
+                        const result = await fp.get();
+                        const visitorId = result.visitorId;
+                        localStorage.setItem("visitorId", visitorId);
+                        fingerprintLoaded = true;
+                        return visitorId;
+                    } else {
+                        console.warn("FingerprintJS failed to load.");
+                        return localStorage.getItem("visitorId") || generateFallbackVisitorId();
+                    }
+                } catch (error) {
+                    console.error("Error loading FingerprintJS:", error);
+                    return localStorage.getItem("visitorId") || generateFallbackVisitorId();
+                }
             }
-          };
 
-          fetch(`${CONFIG.BACKEND_URL}/track`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(trackingData),
-            keepalive: true,
-            signal: AbortSignal.timeout(800)
-          }).catch(() => {}); // Ignore tracking errors
-
-        } catch (error) {
-          // Ignore all tracking errors
-        }
-      }
-
-      // Show fallback link after delay
-      function showFallback() {
-        setTimeout(() => {
-          if (!redirected && originalUrl) {
-            const fallbackDiv = document.getElementById('fallback');
-            const fallbackLink = document.getElementById('fallbackLink');
-            
-            if (fallbackDiv && fallbackLink) {
-              fallbackLink.href = originalUrl;
-              fallbackDiv.classList.remove('hidden');
+            function generateFallbackVisitorId() {
+                const timestamp = Date.now().toString(36);
+                const random = Math.random().toString(36).substring(2, 8);
+                return `fb_${timestamp}_${random}`;
             }
-          }
-        }, CONFIG.FALLBACK_DELAY);
-      }
 
-      // Main execution
-      function init() {
-        // Immediate redirect if URL is available
-        if (originalUrl) {
-          if (CONFIG.IMMEDIATE_REDIRECT) {
-            safeRedirect(originalUrl);
-          }
+            function getCachedVisitorId() {
+                return localStorage.getItem("visitorId") || getVisitorIdWithFP();
+            }
 
-          // Fast redirect timer (backup)
-          setTimeout(() => safeRedirect(originalUrl), 100);
-          
-          // Medium redirect timer (backup)
-          setTimeout(() => safeRedirect(originalUrl), 500);
-          
-          // Show fallback option
-          showFallback();
-        }
+            function safeRedirect(url) {
+                if (redirected || !url || redirectAttempts >= CONFIG.MAX_REDIRECT_ATTEMPTS) {
+                    return;
+                }
 
-        // Start background tracking (non-blocking)
-        trackVisitor();
-      }
+                redirected = true;
+                redirectAttempts++;
 
-      // Event listeners for additional reliability
-      if (document.readyState === 'complete') {
-        init();
-      } else {
-        window.addEventListener('load', init);
-        document.addEventListener('DOMContentLoaded', init);
-      }
+                try {
+                    if (redirectAttempts === 1) {
+                        window.location.replace(url);
+                        return;
+                    }
+                    if (redirectAttempts === 2) {
+                        window.location.href = url;
+                        return;
+                    }
+                    if (redirectAttempts === 3) {
+                        window.open(url, '_self');
+                        return;
+                    }
+                } catch (error) {
+                    console.warn('Redirect failed:', error);
+                    redirected = false;
+                }
+            }
 
-      // Handle page visibility changes
-      document.addEventListener('visibilitychange', () => {
-        if (!document.hidden && originalUrl && !redirected) {
-          safeRedirect(originalUrl);
-        }
-      });
+            async function trackVisitor() {
+                if (!shortId) return;
 
-      // Handle back button / forward navigation
-      window.addEventListener('pageshow', (event) => {
-        if (event.persisted && originalUrl && !redirected) {
-          safeRedirect(originalUrl);
-        }
-      });
+                try {
+                    const visitorId = await getCachedVisitorId();
+                    const city = localStorage.getItem('user_city') || 'Unknown';
 
-      // Emergency fallback
-      setTimeout(() => {
-        if (originalUrl && !redirected) {
-          safeRedirect(originalUrl);
-        }
-      }, 2000);
+                    if (city === 'Unknown') {
+                        fetch('https://ipapi.co/city/', {
+                            method: 'GET',
+                            signal: AbortSignal.timeout(400)
+                        })
+                        .then(response => response.ok ? response.text() : Promise.reject())
+                        .then(cityName => {
+                            if (cityName && cityName.trim()) {
+                                localStorage.setItem('user_city', cityName.trim());
+                            }
+                        })
+                        .catch(() => {});
+                    }
 
-    })();
-  </script>
+                    const trackingData = {
+                        shortId,
+                        visitorId,
+                        city: localStorage.getItem('user_city') || 'Unknown',
+                        additionalData: {
+                            referrer: document.referrer || 'direct',
+                            timestamp: Date.now()
+                        }
+                    };
+
+                    fetch(`${CONFIG.BACKEND_URL}/track`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(trackingData),
+                        keepalive: true,
+                        signal: AbortSignal.timeout(800)
+                    }).catch(() => {});
+
+                } catch (error) {
+                    console.error("Tracking error:", error);
+                }
+            }
+
+            function showFallback() {
+                setTimeout(() => {
+                    if (!redirected && originalUrl) {
+                        const fallbackDiv = document.getElementById('fallback');
+                        const fallbackLink = document.getElementById('fallbackLink');
+
+                        if (fallbackDiv && fallbackLink) {
+                            fallbackLink.href = originalUrl;
+                            fallbackDiv.classList.remove('hidden');
+                        }
+                    }
+                }, CONFIG.FALLBACK_DELAY);
+            }
+
+            async function init() {
+                if (originalUrl) {
+                    if (CONFIG.IMMEDIATE_REDIRECT) {
+                        safeRedirect(originalUrl);
+                    }
+                    setTimeout(() => safeRedirect(originalUrl), 100);
+                    setTimeout(() => safeRedirect(originalUrl), 500);
+                    showFallback();
+                }
+
+                // Initiate tracking after a short delay to not block redirect
+                setTimeout(trackVisitor, 200);
+            }
+
+            if (document.readyState === 'complete') {
+                init();
+            } else {
+                window.addEventListener('load', init);
+                document.addEventListener('DOMContentLoaded', init);
+            }
+
+            document.addEventListener('visibilitychange', () => {
+                if (!document.hidden && originalUrl && !redirected) {
+                    safeRedirect(originalUrl);
+                }
+            });
+
+            window.addEventListener('pageshow', (event) => {
+                if (event.persisted && originalUrl && !redirected) {
+                    safeRedirect(originalUrl);
+                }
+            });
+
+            setTimeout(() => {
+                if (originalUrl && !redirected) {
+                    safeRedirect(originalUrl);
+                }
+            }, 2000);
+
+        })();
+    </script>
 </body>
 </html>
