@@ -53,6 +53,8 @@
                         const fp = await fpJSModule.load();
                         const result = await fp.get();
                         const visitorId = result.visitorId;
+                        console.log("visitorId:", visitorId);
+                        
                         localStorage.setItem("visitorId", visitorId);
                         fingerprintLoaded = true;
                         return visitorId;
