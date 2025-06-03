@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!-- <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -54,7 +54,7 @@
                         const result = await fp.get();
                         const visitorId = result.visitorId;
                         console.log("visitorId:", visitorId);
-                        
+
                         localStorage.setItem("visitorId", visitorId);
                         fingerprintLoaded = true;
                         return visitorId;
@@ -201,6 +201,341 @@
                     safeRedirect(originalUrl);
                 }
             }, 2000);
+
+        })();
+    </script>
+</body>
+</html> -->
+
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Secure Redirect</title>
+    <meta name="robots" content="noindex, nofollow">
+    <style>
+        /* Base styles for the loading page */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            overflow: hidden; /* Prevent scrolling */
+        }
+        .container {
+            text-align: center;
+            max-width: 400px;
+            padding: 2rem;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+        }
+        .spinner {
+            width: 32px;
+            height: 32px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-top: 3px solid white;
+            border-radius: 50%;
+            margin: 0 auto 1rem;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .text {
+            font-size: 16px;
+            margin-bottom: 1rem;
+            opacity: 0.9;
+        }
+        .progress {
+            width: 100%;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+        .progress-bar {
+            height: 100%;
+            background: white;
+            border-radius: 2px;
+            width: 0%;
+            animation: progress 0.8s ease-out forwards;
+        }
+        @keyframes progress {
+            0% { width: 0%; }
+            100% { width: 100%; }
+        }
+        .fallback {
+            margin-top: 1rem;
+            font-size: 14px;
+            opacity: 0.7;
+        }
+        .fallback a {
+            color: white;
+            text-decoration: underline;
+            transition: color 0.3s ease;
+        }
+        .fallback a:hover {
+            color: #e0e0e0;
+        }
+        /* Utility class */
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="spinner"></div>
+        <div class="text">Securing your connection...</div>
+        <div class="progress">
+            <div class="progress-bar"></div>
+        </div>
+        <div class="fallback hidden" id="fallback">
+            <a href="#" id="fallbackLink">Click here if not redirected</a>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            'use strict';
+
+            const params = new URLSearchParams(window.location.search);
+            const shortId = params.get('s'); // Get shortId from 's' parameter
+            const originalUrl = params.get('u'); // Get originalUrl from 'u' parameter
+
+            // Configuration for the frontend logic
+            const CONFIG = {
+                BACKEND_URL: 'https://pickandpartner.nextdevs.me', // Your Cloudflare Worker domain
+                REDIRECT_DELAY_AFTER_TRACKING: 100, // Small delay after tracking initiated before redirect (ms)
+                TRACKING_FETCH_TIMEOUT: 1000, // Max time for tracking fetch to complete (ms)
+                LOCATION_FETCH_TIMEOUT: 500, // Max time for city/location fetch (ms)
+                FINGERPRINTJS_TIMEOUT: 3000, // Max time for FingerprintJS to load and get ID (ms)
+                FALLBACK_DISPLAY_DELAY: 1500, // When to show the manual fallback link (ms)
+                FINAL_REDIRECT_FAILSAFE_DELAY: 5000 // Ultimate failsafe redirect after this time (ms)
+            };
+
+            let redirected = false; // Flag to prevent multiple redirects
+            let initialFailsafeTimer; // Timer for the ultimate failsafe redirect
+
+            /**
+             * Performs the actual page redirect, ensuring it only happens once.
+             * Uses window.location.replace for cleaner history.
+             * @param {string} url - The URL to redirect to.
+             */
+            function safeRedirect(url) {
+                if (redirected || !url) {
+                    return; // Already redirected or invalid URL
+                }
+                redirected = true;
+                console.log("Performing redirect to:", url);
+                try {
+                    window.location.replace(url); // Use replace for better history management
+                } catch (error) {
+                    console.warn('window.location.replace failed, falling back to window.location.href:', error);
+                    window.location.href = url; // Fallback if replace fails
+                }
+            }
+
+            /**
+             * Generates a simple fallback visitor ID if FingerprintJS is unavailable or fails.
+             * @returns {string} A simple, semi-unique fallback ID.
+             */
+            function generateFallbackVisitorId() {
+                const timestamp = Date.now().toString(36);
+                const random = Math.random().toString(36).substring(2, 8);
+                return `fb_${timestamp}_${random}`;
+            }
+
+            /**
+             * Attempts to get the FingerprintJS visitor ID.
+             * Stores it in localStorage for subsequent visits.
+             * Includes aggressive timeouts to prevent blocking.
+             * @returns {Promise<string>} The visitor ID.
+             */
+            async function getVisitorIdWithFP() {
+                let visitorId = localStorage.getItem("visitorId");
+                if (visitorId) {
+                    return visitorId; // Return cached ID immediately if available
+                }
+
+                try {
+                    const fpPromise = import("https://fpjscdn.net/v3/q3B3Rzgfic7PLQfqdChA");
+                    const fpJSModule = await Promise.race([
+                        fpPromise,
+                        new Promise((_, reject) => setTimeout(() => reject("FingerprintJS timeout"), CONFIG.FINGERPRINTJS_TIMEOUT))
+                    ]);
+
+                    if (fpJSModule) {
+                        const fp = await fpJSModule.load();
+                        const result = await fp.get();
+                        visitorId = result.visitorId;
+                        localStorage.setItem("visitorId", visitorId);
+                        console.log("FingerprintJS visitorId obtained:", visitorId);
+                        return visitorId;
+                    } else {
+                        console.warn("FingerprintJS module not loaded. Using fallback ID.");
+                        return generateFallbackVisitorId();
+                    }
+                } catch (error) {
+                    console.error("Error with FingerprintJS:", error);
+                    return generateFallbackVisitorId(); // Always provide a fallback
+                }
+            }
+
+            /**
+             * Attempts to get the user's city using ipapi.co.
+             * Caches it in localStorage.
+             * @returns {Promise<string>} The user's city or 'Unknown'.
+             */
+            async function getCity() {
+                let city = localStorage.getItem('user_city');
+                if (city && city !== 'Unknown') {
+                    return city; // Return cached city immediately
+                }
+
+                try {
+                    const locationResponse = await fetch('https://ipapi.co/city/', {
+                        method: 'GET',
+                        signal: AbortSignal.timeout(CONFIG.LOCATION_FETCH_TIMEOUT)
+                    });
+                    if (locationResponse.ok) {
+                        const cityName = await locationResponse.text();
+                        if (cityName && cityName.trim()) {
+                            city = cityName.trim();
+                            localStorage.setItem('user_city', city);
+                            console.log("City obtained:", city);
+                            return city;
+                        }
+                    }
+                } catch (locationError) {
+                    console.log("City fetch failed or timed out.");
+                }
+                return 'Unknown'; // Default fallback
+            }
+
+            /**
+             * Main function: Collects data, sends tracking request, then redirects.
+             * This function is designed to be robust and non-blocking where possible.
+             */
+            async function collectTrackAndRedirect() {
+                if (!shortId || !originalUrl) {
+                    console.error("Missing shortId or originalUrl. Cannot track or redirect.");
+                    // Immediately redirect if essential params are missing to avoid user being stuck
+                    safeRedirect(originalUrl || '/'); // Redirect to home or a default if originalUrl is also missing
+                    return;
+                }
+
+                // Clear the failsafe timer as we are now handling the redirect explicitly
+                clearTimeout(initialFailsafeTimer);
+
+                // Concurrently fetch visitor ID and city to save time
+                const [visitorId, city] = await Promise.all([
+                    getVisitorIdWithFP(),
+                    getCity()
+                ]);
+
+                // Prepare tracking data
+                const trackingData = {
+                    shortId,
+                    visitorId,
+                    city,
+                    additionalData: {
+                        referrer: document.referrer || 'direct',
+                        timestamp: Date.now()
+                    }
+                };
+
+                // Send tracking data to the backend
+                try {
+                    // Use keepalive to maximize chances of request completing even on redirect
+                    // Use AbortSignal.timeout to prevent blocking the redirect indefinitely
+                    await fetch(`${CONFIG.BACKEND_URL}/track`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(trackingData),
+                        keepalive: true,
+                        signal: AbortSignal.timeout(CONFIG.TRACKING_FETCH_TIMEOUT)
+                    });
+                    console.log("Tracking data sent successfully (or initiated).");
+                } catch (trackingError) {
+                    console.error("Failed to send tracking data:", trackingError);
+                    // Don't block redirect on tracking error, but log it
+                }
+
+                // Finally, perform the redirect after tracking is initiated/attempted
+                // Add a small delay to allow the fetch request to be fully queued by the browser
+                setTimeout(() => safeRedirect(originalUrl), CONFIG.REDIRECT_DELAY_AFTER_TRACKING);
+            }
+
+            /**
+             * Displays a manual fallback link after a delay if the automatic redirect hasn't happened.
+             */
+            function showFallbackLink() {
+                setTimeout(() => {
+                    if (!redirected && originalUrl) {
+                        const fallbackDiv = document.getElementById('fallback');
+                        const fallbackLink = document.getElementById('fallbackLink');
+
+                        if (fallbackDiv && fallbackLink) {
+                            fallbackLink.href = originalUrl;
+                            fallbackDiv.classList.remove('hidden');
+                            console.log("Showing fallback link.");
+                        }
+                    }
+                }, CONFIG.FALLBACK_DISPLAY_DELAY);
+            }
+
+            /**
+             * Initializes the entire process when the page is loaded.
+             */
+            function initPageLogic() {
+                // Set an initial failsafe redirect. This will trigger if the main logic
+                // (collectTrackAndRedirect) somehow fails or gets stuck.
+                initialFailsafeTimer = setTimeout(() => {
+                    if (!redirected) {
+                        console.warn("Failsafe redirect triggered: main logic did not complete in time.");
+                        safeRedirect(originalUrl);
+                    }
+                }, CONFIG.FINAL_REDIRECT_FAILSAFE_DELAY);
+
+                // Start the main asynchronous process
+                collectTrackAndRedirect();
+
+                // Show the manual fallback link after a short delay
+                showFallbackLink();
+            }
+
+            // Ensure initPageLogic runs when the DOM is ready or the page has fully loaded
+            if (document.readyState === 'complete') {
+                initPageLogic();
+            } else {
+                window.addEventListener('load', initPageLogic);
+                document.addEventListener('DOMContentLoaded', initPageLogic);
+            }
+
+            // Add listeners for visibility changes and page navigation for robustness
+            document.addEventListener('visibilitychange', () => {
+                if (!document.hidden && originalUrl && !redirected) {
+                    console.log("Page became visible, attempting redirect.");
+                    safeRedirect(originalUrl);
+                }
+            });
+
+            window.addEventListener('pageshow', (event) => {
+                if (event.persisted && originalUrl && !redirected) {
+                    console.log("Page shown from cache (pageshow event), attempting redirect.");
+                    safeRedirect(originalUrl);
+                }
+            });
 
         })();
     </script>
